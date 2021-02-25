@@ -23,5 +23,8 @@
     <ClInclude Include="MyTexture.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Segment.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
