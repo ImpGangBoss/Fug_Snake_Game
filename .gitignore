@@ -348,3 +348,6 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+Snake_Game.sln  
+Snake_Game.vcxproj  
+Snake_Game.vcxproj.filters
