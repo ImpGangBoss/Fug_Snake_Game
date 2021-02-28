@@ -29,6 +29,17 @@ public:
 	bool GetVerFlip() { return this->vertical_flip; }
 	double GetAngle() { return this->angle; }
 
+	friend bool operator == (const Segment& obj1, const Segment& obj2)
+	{
+		if (obj1.position.x == obj2.position.x
+			&& obj1.position.y == obj2.position.y
+			&& obj1.angle == obj2.angle
+			&& obj1.horizontal_flip == obj2.horizontal_flip
+			&& obj1.vertical_flip == obj2.vertical_flip
+			&& obj1.direction == obj2.direction)
+			return true;
+	}
+
 private:
 	SDL_Point position;
 	MoveDirection direction = STOP;

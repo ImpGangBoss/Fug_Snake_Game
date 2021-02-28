@@ -2,51 +2,217 @@
 #include "Segment.h"
 #include <vector>
 
+const int SCREEN_WIDTH = 1024;
+const int SCREEN_HEIGHT = 1024;
+const int SCREEN_BORDER = 64;
+
+class GameManager
+{
+public:
+
+	void SetGameOverState(bool game_over) { this->game_over = game_over; }
+	void SetHeadCurMoveDir(MoveDirection dir);
+	void SetSpeed(int speed) { this->speed = speed; }
+
+	void IsHeadHitWall(MyTexture& body);
+	void IsHeadHitBody();
+	void StartGame(SDL_Renderer* renderer, TTF_Font* font, MyTexture& background, MyTexture& coin, MyTexture& score, MyTexture& head, MyTexture& body, MyTexture& game_over);
+	void AddNewSegment(Segment& segment);
+	void MoveSnakeSegments();
+	void UpdateSegPos();
+	void GenerateNewCoin(MyTexture& coin);
+	void RenderBackgroundSnakeCoinScore(SDL_Renderer* renderer, TTF_Font* font, MyTexture& background, MyTexture& coin, MyTexture& score, MyTexture& head, MyTexture& body);
+	void RenderGameOverScreen(SDL_Renderer* renderer, MyTexture& game_over);
+
+	auto& GetSnake() { return this->snake; }
+	int GetScore() { return this->score; }
+	bool IsGameOver() { return this->game_over; }
+	bool IsCoinCollected();
+	int GetSpeed() { return this->speed; }
+
+private:
+	std::vector<Segment> snake;
+	
+	SDL_Color font_color = { 255, 255, 255 };
+
+	int coin_position_x = 160,
+		coin_position_y = 160;
+
+	int step = 32,
+		score = 0,
+		speed = 200;
+
+	double angle = 0;
+
+	bool game_over = false;
+};
+
+void GameManager::IsHeadHitWall(MyTexture& body)
+{
+	if (snake[0].GetPosition().y < SCREEN_BORDER
+		|| snake[0].GetPosition().y > SCREEN_HEIGHT - body.GetHeight() - SCREEN_BORDER
+		|| snake[0].GetPosition().x < SCREEN_BORDER
+		|| snake[0].GetPosition().x > SCREEN_WIDTH - body.GetWidth() - SCREEN_BORDER)
+		this->game_over = true;
+}
+
+void GameManager::IsHeadHitBody()
+{
+	for (int i = 1; i < this->snake.size(); ++i)
+		if (this->snake[0].GetPosition().x == this->snake[i].GetPosition().x && this->snake[0].GetPosition().y == this->snake[i].GetPosition().y)
+		{
+			this->game_over = true;
+			return;
+		}
+}
+
+void GameManager::SetHeadCurMoveDir(MoveDirection dir)
+{
+	if (this->snake.size() == 1)
+		this->snake[0].SetMoveDirection(dir); //If snake have only head, set head move direction to current move direction
+	else
+		if ((this->snake[0].GetMoveDirection() == MOVE_LEFT && dir != MOVE_RIGHT)
+			|| (this->snake[0].GetMoveDirection() == MOVE_RIGHT && dir != MOVE_LEFT)
+			|| (this->snake[0].GetMoveDirection() == MOVE_UP && dir != MOVE_DOWN)
+			|| (this->snake[0].GetMoveDirection() == MOVE_DOWN && dir != MOVE_UP)) //Checking if head move direction isn't the opposite with previous move direction
+			this->snake[0].SetMoveDirection(dir);
+}
+
+void GameManager::AddNewSegment(Segment& segment)
+{
+	snake.push_back(segment); //Adding new segment to body
+}
+
+void GameManager::MoveSnakeSegments()
+{
+	//For each snake segment changing position according to move direction 
+	for (auto& i : this->snake)
+	{
+		if (i.GetMoveDirection() == MOVE_UP)
+		{
+			i.SetPosition(i.GetPosition().x, i.GetPosition().y - this->step);
+			i.SetAngle(0.0);
+			i.IsHorFlip(false);
+			i.IsVerFlip(false);
+		}
+		if (i.GetMoveDirection() == MOVE_DOWN)
+		{
+			i.SetPosition(i.GetPosition().x, i.GetPosition().y + this->step);
+			i.SetAngle(0.0);
+			i.IsHorFlip(false);
+			i.IsVerFlip(true);
+		}
+		if (i.GetMoveDirection() == MOVE_LEFT)
+		{
+			i.SetPosition(i.GetPosition().x - this->step, i.GetPosition().y);
+			i.SetAngle(270);
+			i.IsHorFlip(true);
+			i.IsVerFlip(false);
+		}
+		if (i.GetMoveDirection() == MOVE_RIGHT)
+		{
+			i.SetPosition(i.GetPosition().x + this->step, i.GetPosition().y);
+			i.SetAngle(90);
+			i.IsHorFlip(true);
+			i.IsVerFlip(false);
+		}
+	}
+}
+
+bool GameManager::IsCoinCollected()
+{
+	if (this->snake[0].GetPosition().x == this->coin_position_x && this->snake[0].GetPosition().y == this->coin_position_y) //Cecking if snake head is on coin position
+	{
+		this->score++;
+
+		this->coin_position_x = 1;
+		this->coin_position_y = 1;
+
+		if (this->score % 5 == 0) //Speed up every 5 score points
+			this->speed /= 1.2;
+
+		return true;
+	}
+
+	return false;
+}
+
+void GameManager::UpdateSegPos()
+{
+	//Update move direction of segments
+	if (this->snake.size() > 1)
+		for (int i = this->snake.size() - 1; i > 0; --i)
+			this->snake[i].SetPosition(this->snake[i - 1].GetPosition().x, this->snake[i - 1].GetPosition().y);
+}
+
+void GameManager::GenerateNewCoin(MyTexture& coin)
+{
+	while (this->coin_position_x % this->step != 0 || this->coin_position_y % this->step != 0) //Generate new coin
+	{
+		this->coin_position_x = (rand() % (SCREEN_WIDTH - 2 * coin.GetWidth() - SCREEN_BORDER) + SCREEN_BORDER);
+		this->coin_position_y = (rand() % (SCREEN_HEIGHT - 2 * coin.GetHeight() - SCREEN_BORDER) + SCREEN_BORDER);
+		for (auto& i : this->snake)
+		{
+			if (i.GetPosition().x == this->coin_position_x)
+				this->coin_position_x = 1;
+			if (i.GetPosition().y == this->coin_position_y)
+				this->coin_position_y = 1;
+		}
+	}
+}
+
+void GameManager::RenderBackgroundSnakeCoinScore(SDL_Renderer* renderer, TTF_Font* font, MyTexture& background, MyTexture& coin, MyTexture& score, MyTexture& head, MyTexture& body)
+{
+	//Render background and coin
+	background.Render(renderer, 0, 0, false, false, 0.0);
+	coin.Render(renderer, this->coin_position_x, this->coin_position_y, false, false, 0.0);
+
+	//Render snake
+	for (int i = 1; i < this->snake.size(); ++i)
+		body.Render(renderer, this->snake[i].GetPosition().x, this->snake[i].GetPosition().y, this->snake[i].GetHorFlip(), this->snake[i].GetVerFlip(), this->snake[i].GetAngle());
+	head.Render(renderer, this->snake[0].GetPosition().x, this->snake[0].GetPosition().y, this->snake[0].GetHorFlip(), this->snake[0].GetVerFlip(), this->snake[0].GetAngle());
+
+	score.LoadFromRenderedText(renderer, font, std::to_string(this->score), this->font_color);
+	score.Render(renderer, (SCREEN_WIDTH - score.GetWidth()) / 2, -32, false, false, 0.0); //Render score
+
+	SDL_RenderPresent(renderer);
+}
+
+void GameManager::RenderGameOverScreen(SDL_Renderer* renderer, MyTexture& game_over)
+{
+	//If game is over, render game_over text
+	game_over.Render(renderer, (SCREEN_WIDTH - game_over.GetWidth()) / 2, (SCREEN_HEIGHT - game_over.GetHeight()) / 2, false, false, 0.0);
+	SDL_RenderPresent(renderer);
+}
+
+void GameManager::StartGame(SDL_Renderer* renderer, TTF_Font* font, MyTexture& background, MyTexture& coin, MyTexture& score, MyTexture& head, MyTexture& body, MyTexture& game_over)
+{
+	SetGameOverState(false);
+	this->snake.clear();
+	this->score = 0;
+
+	this->snake.push_back(Segment((SCREEN_WIDTH - head.GetWidth()) / 2 - 16, (SCREEN_HEIGHT - head.GetHeight()) / 2 - 16, STOP, false, false, 0.0)); //Add snake head to snake vector
+
+	game_over.LoadFromRenderedText(renderer, font, "GAME OVER", this->font_color); //Loading game_over text
+
+	score.LoadFromRenderedText(renderer, font, std::to_string(GetScore()),this->font_color); //Loading score text
+
+
+	background.Render(renderer, 0, 0, NULL, false, false, NULL); //Background render
+	head.Render(renderer, GetSnake()[0].GetPosition().x, GetSnake()[0].GetPosition().y, NULL, false, false, NULL); //Snake head render
+	coin.Render(renderer, this->coin_position_x, this->coin_position_y, false, false, 0.0); //Coin render
+
+	SDL_RenderPresent(renderer);
+}
+
 int main(int argc, char* args[])
 {
 	srand(time(nullptr));
-
-	const int SCREEN_WIDTH = 1024;
-	const int SCREEN_HEIGHT = 1024;
-	const int SCREEN_BORDER = 64;
 
 	SDL_Window* window = NULL;
 	SDL_Renderer* renderer = NULL;
 	TTF_Font* font = NULL;
 
-	MyTexture background_texture,
-		snake_head_texture,
-		snake_body_texture,
-		coin_texture,
-		score_texture,
-		game_over_texture;
-
-	std::vector<Segment> snake;
-
-	bool quit = false;
-	SDL_Event e;
-	SDL_Color font_color = { 255, 255, 255 };
-	SDL_Point current_position;
-	MoveDirection current_direction;
-	Segment temp_segment(0, 0, STOP, false, false, 0.0);
-
-	int coin_position_x = 160,
-		coin_position_y = 160,
-		score_position_x = (SCREEN_WIDTH - score_texture.GetWidth()) / 2 - 32,
-		score_position_y = -32,
-		step = 32,
-		score = 0,
-		frame_counter = 0,
-		speed = 200;
-
-	double angle = 0;
-
-	bool horizontal_flip = false,
-		vertical_flip = false,
-		add_new_segment = false,
-		game_over = false;
-
-	//Creating Window, Renderer and initialization SDL_TTF and SDL_IMG
 	if (SDL_Init(SDL_INIT_VIDEO) < 0)
 		std::cout << "SDL could not initialize! SDL Error: " << SDL_GetError() << std::endl;
 	else
@@ -55,7 +221,7 @@ int main(int argc, char* args[])
 		if (window == NULL)
 			std::cout << "Window could not be created! SDL Error: " << SDL_GetError() << std::endl;
 		else
-		{	
+		{
 			renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 			if (renderer == NULL)
 				std::cout << "Renderer could not be created! SDL Error: " << SDL_GetError() << std::endl;
@@ -73,7 +239,13 @@ int main(int argc, char* args[])
 		}
 	}
 
-	//Loading assets
+	MyTexture background_texture,
+		snake_head_texture,
+		snake_body_texture,
+		coin_texture,
+		score_texture,
+		game_over_texture;
+
 	if (!background_texture.LoadFromFile(renderer, "Assets/background.png"))
 		std::cout << "Failed to load background texture!" << std::endl;
 	if (!snake_head_texture.LoadFromFile(renderer, "Assets/head.png"))
@@ -86,20 +258,18 @@ int main(int argc, char* args[])
 	if (font == NULL)
 		std::cout << "Failed to load font! SDL_ttf Error:" << TTF_GetError() << std::endl;
 
-	current_position.x = (SCREEN_WIDTH - snake_head_texture.GetWidth()) / 2 - 16; //Set head x position to map center
-	current_position.y = (SCREEN_HEIGHT - snake_head_texture.GetHeight()) / 2 - 16; //Set head y position to map center
-	current_direction = STOP;
-	snake.push_back(Segment(current_position, current_direction, horizontal_flip, vertical_flip, angle)); //Add snake head to snake vector
+	GameManager game_manager;
 
-	game_over_texture.LoadFromRenderedText(renderer, font, "GAME OVER", font_color); //Loading game_over text
-	score_texture.LoadFromRenderedText(renderer, font, std::to_string(score), font_color); //Loading score text
+	SDL_Event e;
+	MoveDirection current_direction = STOP;
+	Segment temp_segment(-100, -100, STOP, false, false, 0.0);
 
-	background_texture.Render(renderer, 0, 0, NULL, false, false, NULL); //Background render
-	snake_head_texture.Render(renderer, current_position.x, current_position.y, NULL, false, false, NULL); //Snake head render
-	coin_texture.Render(renderer, coin_position_x, coin_position_y, false, false, 0.0); //Coin render
-	score_texture.Render(renderer, score_position_x, score_position_y, false, false, 0.0); //Score render
+	bool quit = false,
+		add_new_segment = false;
+
+	int frame_counter = 0;
 			
-	SDL_RenderPresent(renderer);
+	game_manager.StartGame(renderer, font, background_texture, coin_texture, score_texture, snake_head_texture, snake_body_texture, game_over_texture);
 			
 	while (!quit)
 	{
@@ -115,24 +285,8 @@ int main(int argc, char* args[])
 					{
 					case SDLK_r:
 					{
-						if (game_over == true) //If R is pressed and game is over, clear snake and set head postion to map center
-						{
-							snake.clear();
-							game_over = false;
-
-							speed = 200;
-							score = 0;
-
-							current_position.x = (SCREEN_WIDTH - snake_head_texture.GetWidth()) / 2 - 16;
-							current_position.y = (SCREEN_HEIGHT - snake_head_texture.GetHeight()) / 2 - 16;
-							current_direction = STOP;
-							snake.push_back(Segment(current_position, current_direction, horizontal_flip, vertical_flip, angle));
-
-							background_texture.Render(renderer, 0, 0, false, false, 0.0);
-							snake_head_texture.Render(renderer, current_position.x, current_position.y, horizontal_flip, vertical_flip, angle);
-
-							SDL_RenderPresent(renderer);
-						}
+						if (game_manager.IsGameOver() == true) //If R is pressed and game is over, clear snake and set head postion to map center
+							game_manager.StartGame(renderer, font, background_texture, coin_texture, score_texture, snake_head_texture, snake_body_texture, game_over_texture);
 						break;
 					}
 					case SDLK_w:
@@ -156,131 +310,33 @@ int main(int argc, char* args[])
 			}
 		}
 
-		if (snake[0].GetPosition().y < SCREEN_BORDER
-			|| snake[0].GetPosition().y > SCREEN_HEIGHT - snake_body_texture.GetHeight() - SCREEN_BORDER
-			|| snake[0].GetPosition().x < SCREEN_BORDER
-			|| snake[0].GetPosition().x > SCREEN_WIDTH - snake_body_texture.GetWidth() - SCREEN_BORDER) //Checing if head hit the wall
-			game_over = true;
+		game_manager.IsHeadHitWall(snake_body_texture); //Checing if head hit the wall
 				
-		for (int i = 1; i < snake.size(); ++i)
-			if (snake[0].GetPosition().x == snake[i].GetPosition().x && snake[0].GetPosition().y == snake[i].GetPosition().y) //Checking if head hit snake body
-				game_over = true;
+		game_manager.IsHeadHitBody(); //Checking if head hit snake body
 				
-		if (!game_over)
+		if (!game_manager.IsGameOver())
 		{
-			if (snake.size() == 1)
-				snake[0].SetMoveDirection(current_direction); //If snake have only head, set head move direction to current move direction
-			else
-				if ((snake[0].GetMoveDirection() == MOVE_LEFT && current_direction != MOVE_RIGHT)
-					|| (snake[0].GetMoveDirection() == MOVE_RIGHT && current_direction != MOVE_LEFT)
-					|| (snake[0].GetMoveDirection() == MOVE_UP && current_direction != MOVE_DOWN)
-					|| (snake[0].GetMoveDirection() == MOVE_DOWN && current_direction != MOVE_UP)) //Checking if head move direction isn't the opposite with previous move direction
-					snake[0].SetMoveDirection(current_direction);
+			game_manager.SetHeadCurMoveDir(current_direction);
 
-			if (frame_counter % speed == 0) //Update speed
+			if (frame_counter % game_manager.GetSpeed() == 0) //Update speed
 			{
-				if (add_new_segment)
+				game_manager.UpdateSegPos();
+				game_manager.MoveSnakeSegments();
+
+				if (game_manager.IsCoinCollected())
 				{
-					add_new_segment = false;
-					snake.push_back(temp_segment); //Adding new segment to body
-				}
-						
-				if (snake[0].GetPosition().x == coin_position_x && snake[0].GetPosition().y == coin_position_y) //Cecking if snake head is on coin position
-				{
-					score++;
-
-					coin_position_x = 1;
-					coin_position_y = 1;
-
-					add_new_segment = true;
-
-					temp_segment = snake[snake.size() - 1]; //New segment have same properties as a previous
-
-					if (score % 5 == 0) //Speed up every 5 score points
-						speed /= 1.2;
-				}
-
-				//For each snake segment changing position according to move direction 
-				for (auto& i : snake)
-				{
-					if (i.GetMoveDirection() == MOVE_UP)
-					{
-						i.SetPosition(i.GetPosition().x, i.GetPosition().y - step);
-						i.SetAngle(0.0);
-						i.IsHorFlip(false);
-						i.IsVerFlip(false);
-					}
-					if (i.GetMoveDirection() == MOVE_DOWN)
-					{
-						i.SetPosition(i.GetPosition().x, i.GetPosition().y + step);
-						i.SetAngle(0.0);
-						i.IsHorFlip(false);
-						i.IsVerFlip(true);
-					}
-					if (i.GetMoveDirection() == MOVE_LEFT)
-					{
-						i.SetPosition(i.GetPosition().x - step, i.GetPosition().y);
-						i.SetAngle(270);
-						i.IsHorFlip(true);
-						i.IsVerFlip(false);
-					}
-					if (i.GetMoveDirection() == MOVE_RIGHT)
-					{
-						i.SetPosition(i.GetPosition().x + step, i.GetPosition().y);
-						i.SetAngle(90);
-						i.IsHorFlip(true);
-						i.IsVerFlip(false);
-					}
-				}
-
-				//Update move direction of segments
-				if (snake.size() > 1)
-					for (int i = snake.size() - 1; i > 0; --i)
-						snake[i].SetMoveDirection(snake[i - 1].GetMoveDirection());
-			}
-
-			while (coin_position_x % step != 0 || coin_position_y % step != 0) //Generate new coin
-			{
-				coin_position_x = rand() % (SCREEN_WIDTH - 2 * coin_texture.GetWidth() - SCREEN_BORDER) + SCREEN_BORDER;
-				coin_position_y = rand() % (SCREEN_HEIGHT - 2 * coin_texture.GetHeight() - SCREEN_BORDER) + SCREEN_BORDER;
-				for (auto& i : snake)
-				{
-					if (i.GetPosition().x == coin_position_x)
-						coin_position_x = 1;
-					if (i.GetPosition().y == coin_position_y)
-						coin_position_y = 1;
+					game_manager.AddNewSegment(temp_segment);
+					temp_segment = game_manager.GetSnake()[game_manager.GetSnake().size() - 1]; //New segment have same properties as a previous
+					game_manager.GenerateNewCoin(coin_texture);
 				}
 			}
-
-			//Render background and coin
-			background_texture.Render(renderer, 0, 0, false, false, 0.0);
-			coin_texture.Render(renderer, coin_position_x, coin_position_y, false, false, 0.0);
-
-			//Render snake
-			for (int i = 1; i < snake.size(); ++i)
-				snake_body_texture.Render(renderer, snake[i].GetPosition().x, snake[i].GetPosition().y, snake[i].GetHorFlip(), snake[i].GetVerFlip(), snake[i].GetAngle());
-			snake_head_texture.Render(renderer, snake[0].GetPosition().x, snake[0].GetPosition().y, snake[0].GetHorFlip(), snake[0].GetVerFlip(), snake[0].GetAngle());
-			
-			score_texture.LoadFromRenderedText(renderer, font, std::to_string(score), font_color);
-			score_texture.Render(renderer, score_position_x, score_position_y, false, false, 0.0); //Render score
-			
-
+			game_manager.RenderBackgroundSnakeCoinScore(renderer, font, background_texture, coin_texture, score_texture, snake_head_texture, snake_body_texture);
 			frame_counter++;
-
-			SDL_RenderPresent(renderer);
 		}
 		else
-		{
-			//If game is over, render game_over text
-			game_over_texture.Render(renderer, (SCREEN_WIDTH - game_over_texture.GetWidth()) / 2,
-				(SCREEN_HEIGHT - game_over_texture.GetHeight()) / 2,
-				false, false, 0.0);
-			SDL_RenderPresent(renderer);
-		}
+			game_manager.RenderGameOverScreen(renderer, game_over_texture);
 	}
 
-
-	//Clearing textures. Destroying Window and Renderer. Closing font
 	background_texture.Clear();
 	snake_body_texture.Clear();
 	snake_head_texture.Clear();
